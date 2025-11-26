@@ -1,8 +1,24 @@
 import os
+import sys
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 def main():
+    # Ensure a prompt was provided
+    if len(sys.argv) < 2:
+        print("Error: Please provide a prompt as a command line argument.")
+        print("Example: uv run main.py \"Why is backend development fun?\"")
+        sys.exit(1)
+
+    # Read user prompt from CLI
+    user_prompt = sys.argv[1]
+
+    # Track user prompt
+    messages = [
+        types.Content(role="user", parts=[types.Part(text=user_prompt)]),
+    ]
+
     # Load environment variables
     load_dotenv()
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -13,7 +29,7 @@ def main():
     # Generate content
     response = client.models.generate_content(
         model="gemini-2.0-flash-001",
-        contents="Why is Boot.dev such a great place to learn backend development? Use one paragraph maximum."
+        contents=messages
     )
 
     # Print response text
