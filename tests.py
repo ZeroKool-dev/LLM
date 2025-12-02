@@ -1,20 +1,15 @@
-from functions.get_files_info import get_files_info
+from functions.get_file_content import get_file_content
 
 
-def print_result(label, working_directory, directory):
-    print(f'get_files_info("{working_directory}", "{directory}"):\nResult for {label} directory:')
-    result = get_files_info(working_directory, directory)
-    if result.startswith("Error:"):
-        print(f"    {result}\n")
-        return
-
-    for line in result.splitlines():
-        print(f" {line}")
+def print_result(label, working_directory, file_path):
+    print(f'get_file_content("{working_directory}", "{file_path}"):\nResult for {label}:')
+    result = get_file_content(working_directory, file_path)
+    print(result)
     print()
 
 
 if __name__ == "__main__":
-    print_result("current", "calculator", ".")
-    print_result("'pkg'", "calculator", "pkg")
-    print_result("'/bin'", "calculator", "/bin")
-    print_result("'../'", "calculator", "../")
+    print_result('"main.py"', "calculator", "main.py")
+    print_result('"pkg/calculator.py"', "calculator", "pkg/calculator.py")
+    print_result('"/bin/cat"', "calculator", "/bin/cat")
+    print_result('"pkg/does_not_exist.py"', "calculator", "pkg/does_not_exist.py")
