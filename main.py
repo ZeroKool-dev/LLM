@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from functions.get_files_info import schema_get_files_info
+from prompts import system_prompt
+
 
 def main():
     parser = argparse.ArgumentParser(description="AI Code Assistant")
@@ -18,17 +21,24 @@ def main():
         raise RuntimeError("GEMINI_API_KEY environment variable not set")
 
     client = genai.Client(api_key=api_key)
+    available_functions = types.Tool(
+        function_declarations=[schema_get_files_info],
+    )
+    model_name = "gemini-2.5-flash"
     messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
     if args.verbose:
         print(f"User prompt: {args.user_prompt}\n")
 
-    generate_content(client, messages, args.verbose)
+    generate_content(client, messages, model_name, available_functions, args.verbose)
 
 
-def generate_content(client, messages, verbose):
+def generate_content(client, messages, model_name, available_functions, verbose):
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=model_name,
         contents=messages,
+        config=types.GenerateContentConfig(
+            tools=[available_functions], system_instruction=system_prompt
+        ),
     )
     if not response.usage_metadata:
         raise RuntimeError("Gemini API response appears to be malformed")
@@ -36,8 +46,13 @@ def generate_content(client, messages, verbose):
     if verbose:
         print("Prompt tokens:", response.usage_metadata.prompt_token_count)
         print("Response tokens:", response.usage_metadata.candidates_token_count)
-    print("Response:")
-    print(response.text)
+    function_calls = response.function_calls if response.function_calls else None
+    if function_calls:
+        for function_call_part in function_calls:
+            print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+    else:
+        print("Response:")
+        print(response.text)
 
 
 if __name__ == "__main__":
