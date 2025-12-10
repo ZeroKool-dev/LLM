@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from call_function import available_functions
+from call_function import available_functions, call_function
 from prompts import system_prompt
 
 
@@ -30,7 +30,7 @@ def main():
 
 def generate_content(client, messages, verbose):
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash-lite",
         contents=messages,
         config=types.GenerateContentConfig(
             tools=[available_functions], system_instruction=system_prompt
@@ -48,8 +48,19 @@ def generate_content(client, messages, verbose):
         print(response.text)
         return
 
+    function_call_parts = []  # Captured tool responses for potential follow-up turns
     for function_call_part in response.function_calls:
-        print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+        function_call_result = call_function(function_call_part, verbose=verbose)
+        if (
+            not function_call_result.parts
+            or not function_call_result.parts[0].function_response
+            or function_call_result.parts[0].function_response.response is None
+        ):
+            raise RuntimeError("Function response missing from call_function result")
+
+        function_call_parts.append(function_call_result.parts[0])
+        if verbose:
+            print(f"-> {function_call_result.parts[0].function_response.response}")
 
 
 if __name__ == "__main__":

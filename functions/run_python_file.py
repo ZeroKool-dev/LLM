@@ -1,5 +1,7 @@
 import os
+import shutil
 import subprocess
+import sys
 
 from google.genai import types
 
@@ -13,8 +15,10 @@ def run_python_file(working_directory, file_path, args=None):
         return f'Error: File "{file_path}" not found.'
     if not file_path.endswith(".py"):
         return f'Error: "{file_path}" is not a Python file.'
+    python_cmd = shutil.which("python") or shutil.which("python3") or sys.executable
+
     try:
-        commands = ["python", abs_file_path]
+        commands = [python_cmd, abs_file_path]
         if args:
             commands.extend(args)
         result = subprocess.run(
