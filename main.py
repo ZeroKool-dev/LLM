@@ -29,38 +29,68 @@ def main():
 
 
 def generate_content(client, messages, verbose):
-    response = client.models.generate_content(
-        model="gemini-2.5-flash-lite",
-        contents=messages,
-        config=types.GenerateContentConfig(
-            tools=[available_functions], system_instruction=system_prompt
-        ),
-    )
-    if not response.usage_metadata:
-        raise RuntimeError("Gemini API response appears to be malformed")
+    max_iterations = 20
+    for _ in range(max_iterations):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=messages,
+                config=types.GenerateContentConfig(
+                    tools=[available_functions], system_instruction=system_prompt
+                ),
+            )
+        except Exception as e:
+            print(f"Error during generate_content: {e}")
+            return
 
-    if verbose:
-        print("Prompt tokens:", response.usage_metadata.prompt_token_count)
-        print("Response tokens:", response.usage_metadata.candidates_token_count)
+        if not response.usage_metadata:
+            raise RuntimeError("Gemini API response appears to be malformed")
 
-    if not response.function_calls:
-        print("Response:")
-        print(response.text)
-        return
-
-    function_call_parts = []  # Captured tool responses for potential follow-up turns
-    for function_call_part in response.function_calls:
-        function_call_result = call_function(function_call_part, verbose=verbose)
-        if (
-            not function_call_result.parts
-            or not function_call_result.parts[0].function_response
-            or function_call_result.parts[0].function_response.response is None
-        ):
-            raise RuntimeError("Function response missing from call_function result")
-
-        function_call_parts.append(function_call_result.parts[0])
         if verbose:
-            print(f"-> {function_call_result.parts[0].function_response.response}")
+            print("Prompt tokens:", response.usage_metadata.prompt_token_count)
+            print("Response tokens:", response.usage_metadata.candidates_token_count)
+
+        if response.candidates:
+            for candidate in response.candidates:
+                if candidate.content:
+                    messages.append(candidate.content)
+
+        function_call_parts = []  # Captured tool responses for potential follow-up turns
+        if response.function_calls:
+            for function_call_part in response.function_calls:
+                function_call_result = call_function(function_call_part, verbose=verbose)
+                if (
+                    not function_call_result.parts
+                    or not function_call_result.parts[0].function_response
+                    or function_call_result.parts[0].function_response.response is None
+                ):
+                    raise RuntimeError(
+                        "Function response missing from call_function result"
+                    )
+
+                function_call_parts.append(function_call_result.parts[0])
+                if verbose:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
+
+        if function_call_parts:
+            messages.append(types.Content(role="user", parts=function_call_parts))
+
+        candidates_have_function_call = any(
+            any(
+                getattr(part, "function_call", None) is not None
+                for part in (candidate.content.parts or [])
+            )
+            for candidate in (response.candidates or [])
+            if candidate.content and candidate.content.parts
+        )
+        is_finished = not candidates_have_function_call and bool(response.text)
+
+        if is_finished:
+            print("Response:")
+            print(response.text)
+            return
+
+    print("Maximum iterations reached without completion.")
 
 
 if __name__ == "__main__":
